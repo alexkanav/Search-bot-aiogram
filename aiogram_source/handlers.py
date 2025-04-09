@@ -4,14 +4,13 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import Message, ReplyKeyboardRemove, CallbackQuery
 from aiogram_source import keyboards
-from config import available_region, browsers
-import selenium_scraping
 import asyncio
+
+import selenium_scraping
+from config import available_region, browsers
 import save_csv
 
 router = Router()
-link3 = {}
-busy = False
 
 
 class Choice(StatesGroup):
@@ -20,6 +19,8 @@ class Choice(StatesGroup):
     choosing_region = State()
     choosing_region_town = State()
     quit_search = State()
+    busy = False
+    link = {}
 
 
 @router.message(Command("start"))
@@ -55,10 +56,7 @@ async def choosing_things(message: Message, state: FSMContext):
         await message.answer(text="Помилка. Вкажіть максимальну ціну:")
 
 
-@router.message(
-    Choice.choosing_region,
-    F.text.in_(list(available_region.keys()))
-)
+@router.message(Choice.choosing_region, F.text.in_(list(available_region.keys())))
 async def region_chosen(message: Message, state: FSMContext):
     await state.update_data(chosen_region=message.text)
     await message.answer(
@@ -70,7 +68,8 @@ async def region_chosen(message: Message, state: FSMContext):
 
 @router.message(Choice.choosing_region)
 async def region_chosen_incorrectly(message: Message):
-    await message.answer(text="Не вірно, спробуйте ще", reply_markup=keyboards.make_multiline_keyboard(available_region, 4))
+    await message.answer(text="Не вірно, спробуйте ще",
+                         reply_markup=keyboards.make_multiline_keyboard(available_region, 4))
 
 
 @router.message(Choice.choosing_region_town)
@@ -86,7 +85,8 @@ async def choosing_things(message: Message, state: FSMContext):
             f" максимальна ціна: {order['choosing_price']}"
         )
 
-        n1, n2 = await searching(message, order['chosen_thing'], order['chosen_region'], order['town'], order['choosing_price'])
+        n1, n2 = await searching(message, order['chosen_thing'], order['chosen_region'], order['town'],
+                                 order['choosing_price'])
         await message.answer(text=f"Пошук завершено. Знайдено {n1} із {n2} варіантів")
 
         await message.answer(
@@ -95,7 +95,7 @@ async def choosing_things(message: Message, state: FSMContext):
         )
         await state.set_state(Choice.quit_search)
 
-            # save_csv.wright_csv(selenium_scraping.card_to_file)
+        # save_csv.wright_csv(selenium_scraping.card_to_file)
 
     else:
         user_data = await state.get_data()
@@ -107,15 +107,14 @@ async def choosing_things(message: Message, state: FSMContext):
 
 @router.callback_query(F.data.startswith("item_"))
 async def send_random_value(callback: CallbackQuery):
-    global busy
-    if not busy:
-        busy = True
+    if not Choice.busy:
+        Choice.busy = True
         action = callback.data
         driver = selenium_scraping.run_driver(browsers)
-        phone = selenium_scraping.get_contacts(link3[action][1])
-        await callback.message.answer(f"Для id={link3[action][0]} Номер продавця: {phone}")
+        phone = selenium_scraping.get_contacts(Choice.link[action][1], driver)
+        await callback.message.answer(f"Для id={Choice.link[action][0]} Номер продавця: {phone}")
         driver.quit()
-        busy = False
+        Choice.busy = False
     else:
         await callback.message.answer("Відмова, я ще не закінчив пошук")
 
@@ -130,26 +129,25 @@ async def continue_searching(message: Message, state: FSMContext):
 
         elif message.text == 'Шукати далі':
             user_data = await state.get_data()
-            # driver = selenium_scraping.run_driver(browsers)
             await asyncio.sleep(1800)
-            await searching(message, user_data['chosen_thing'], user_data['chosen_region'], user_data['town'], user_data['choosing_price'])
+            await searching(message, user_data['chosen_thing'], user_data['chosen_region'], user_data['town'],
+                            user_data['choosing_price'])
 
 
-async def searching(message, chosen_thing, chosen_region, town, price):
-    global link3, busy
-    if not busy:
-        busy = True
+async def searching(message: Message, chosen_thing: str, chosen_region: str, town, price: str):
+    if not Choice.busy:
+        Choice.busy = True
         cards = ''
         n = 0
         driver = selenium_scraping.run_driver(browsers)
-        cards = selenium_scraping.choice_things(chosen_thing, chosen_region, town)
+        cards = selenium_scraping.choice_things(driver, chosen_thing, chosen_region, town)
 
         for i in range(len(cards)):
             card_id, res3, describe_link = selenium_scraping.get_things(i, price, cards[i])
-            link3[f'item_{card_id}'] = (card_id, describe_link)
+            Choice.link[f'item_{card_id}'] = (card_id, describe_link)
 
             if (i + 1) % 4 == 0:
-                selenium_scraping.scroll(cards[i])
+                selenium_scraping.scroll(driver, cards[i])
             if res3:
                 n += 1
                 await message.answer(
@@ -163,13 +161,9 @@ async def searching(message, chosen_thing, chosen_region, town, price):
 
                 )
         driver.quit()
-        busy = False
+        Choice.busy = False
         return n, len(cards)
 
     else:
         await message.answer(text="Відмова, я ще не закінчив пошук")
         return None, None
-
-
-
-

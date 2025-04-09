@@ -2,12 +2,12 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardBut
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 
 
-def make_row_keyboard(items: list[str]):
+def make_row_keyboard(items: list):
     row = [KeyboardButton(text=item) for item in items]
     return ReplyKeyboardMarkup(keyboard=[row], resize_keyboard=True)
 
 
-def make_multiline_keyboard(items, number_of_lines):
+def make_multiline_keyboard(items: list, number_of_lines: int):
     builder = ReplyKeyboardBuilder()
     for i in items:
         builder.add(KeyboardButton(text=str(i)))
@@ -15,7 +15,7 @@ def make_multiline_keyboard(items, number_of_lines):
     return builder.as_markup(resize_keyboard=True)
 
 
-def make_row_inline_keyboard(items):
+def make_row_inline_keyboard(items: list):
     builder = InlineKeyboardBuilder()
     for i in items:
         if list(items[i].keys())[0] == 'url':

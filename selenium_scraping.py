@@ -3,18 +3,15 @@ from selenium.webdriver.common.by import By
 import time
 
 
-card_to_file = []
-ids = []
-
-
-def run_driver(browser):
-    global driver
+def run_driver(browser: str) -> webdriver:
+    driver = None
     if browser == 'chrome':
         options = webdriver.ChromeOptions()
         options.add_argument("start-maximized")
         options.add_experimental_option("excludeSwitches", ["enable-automation"])
         options.add_experimental_option('useAutomationExtension', False)
-        options.add_argument("user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.103 Safari/537.36")
+        options.add_argument(
+            "user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.103 Safari/537.36")
         options.add_argument("--disable-blink-features=AutomationControlled")
         options.add_argument("--no-sandbox")
         options.add_argument("--headless")
@@ -27,13 +24,13 @@ def run_driver(browser):
     elif browser == 'firefox':
         driver = webdriver.Firefox()
         driver.maximize_window()
-    driver.get('https://www.olx.ua/uk/')
-    driver.implicitly_wait(20)
-
+    if driver:
+        driver.get('https://www.olx.ua/uk/')
+        driver.implicitly_wait(20)
     return driver
 
 
-def choice_things(thing, region, location):
+def choice_things(driver: webdriver, thing: str, region: str, location: str) -> list:
     thing_to_search = driver.find_element(By.ID, "search")
     thing_to_search.send_keys(f"{thing}")
     time.sleep(3)
@@ -60,7 +57,8 @@ def choice_things(thing, region, location):
     return cards
 
 
-def get_things(id2, max_price, card):
+def get_things(id2: int, max_price: str, card: webdriver.WebElement):
+    ids = []
     time.sleep(4)
     card_id = card.get_attribute('id')
     image_link = card.find_element(By.TAG_NAME, 'img').get_attribute('src')
@@ -78,36 +76,35 @@ def get_things(id2, max_price, card):
         print('price error: ', er)
         add_price = 'Ціна не вказана'
 
-
     try:
         state_tag = card.find_element(By.CSS_SELECTOR, "span[class='css-3lkihg']").get_attribute('title')
     except Exception as er:
         print("state_tag error: ", er)
         state_tag = ''
-    
+
     ids.append(card_id)
     location_date = card.find_element(By.CSS_SELECTOR, "p[data-testid='location-date']").text
     describe_link = card.find_element(By.TAG_NAME, 'a').get_attribute('href')
-    card_to_file.append([f"id={id2}, {image_link}, {describe}, {state_tag}, {add_price}, {location_date}, {describe_link}"])
+    # card_to_file.append([f"id={id2}, {image_link}, {describe}, {state_tag}, {add_price}, {location_date}, {describe_link}"])
 
     return card_id, f"{image_link}, {describe}, {state_tag}, {add_price}, {location_date}", describe_link
 
 
-
-def scroll(item):
+def scroll(driver: webdriver, item: webdriver.WebElement):
     try:
         driver.execute_script("arguments[0].scrollIntoView(true);", item)
     except Exception as err:
         print('scroll error: ', err)
 
 
-def get_contacts(link):
+def get_contacts(link: str, driver: webdriver) -> str:
     driver.get(link)
     driver.implicitly_wait(20)
     try:
         contacts = driver.find_element(By.XPATH, "//button[text()='показати']")
         time.sleep(4)
-        driver.execute_script("arguments[0].scrollIntoView({behavior:\"auto\", block:\"center\", inline:\"center\"});", contacts)
+        driver.execute_script("arguments[0].scrollIntoView({behavior:\"auto\", block:\"center\", inline:\"center\"});",
+                              contacts)
         time.sleep(4)
         contacts.click()
         time.sleep(4)
@@ -118,6 +115,3 @@ def get_contacts(link):
         print('phone error: ', er)
         driver.quit()
         return "На жаль телефон не знайдено"
-
-
-
