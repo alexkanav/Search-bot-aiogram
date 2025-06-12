@@ -4,7 +4,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram_source import handlers
 
-from config import token
+from config import TOKEN
 
 
 async def main():
@@ -13,13 +13,14 @@ async def main():
         format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
     )
 
-    # If you do not specify storage, the default will be MemoryStorage
     dp = Dispatcher(storage=MemoryStorage())
-    # bot = Bot(config.bot_token.get_secret_value())
-    bot = Bot(token=token)
+    bot = Bot(token=TOKEN)
     dp.include_router(handlers.router)
+    await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
 
 if __name__ == '__main__':
     asyncio.run(main())
+
+

@@ -1,13 +1,13 @@
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardButton
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 
 
-def make_row_keyboard(items: list):
+def make_row_keyboard(items: list) -> ReplyKeyboardMarkup:
     row = [KeyboardButton(text=item) for item in items]
     return ReplyKeyboardMarkup(keyboard=[row], resize_keyboard=True)
 
 
-def make_multiline_keyboard(items: list, number_of_lines: int):
+def make_multiline_keyboard(items: list, number_of_lines: int) -> ReplyKeyboardBuilder:
     builder = ReplyKeyboardBuilder()
     for i in items:
         builder.add(KeyboardButton(text=str(i)))
@@ -15,15 +15,12 @@ def make_multiline_keyboard(items: list, number_of_lines: int):
     return builder.as_markup(resize_keyboard=True)
 
 
-def make_row_inline_keyboard(items: list):
+def make_row_inline_keyboard(items: list) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    for i in items:
-        if list(items[i].keys())[0] == 'url':
-            builder.row(InlineKeyboardButton(
-                    text=i, url=items[i].get('url'))
-                )
-        if list(items[i].keys())[0] == 'callback_data':
-            builder.row(InlineKeyboardButton(
-                    text=i, callback_data=items[i].get('callback_data'))
-                )
+    for item in items:
+        text, data = list(item.items())[0]  # text is the button label, data is a dict
+        if 'url' in data:
+            builder.row(InlineKeyboardButton(text=text, url=data['url']))
+        elif 'callback_data' in data:
+            builder.row(InlineKeyboardButton(text=text, callback_data=data['callback_data']))
     return builder.as_markup()

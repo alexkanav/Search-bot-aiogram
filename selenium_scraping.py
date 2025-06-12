@@ -1,6 +1,9 @@
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-import time
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+
+from config import URL
 
 
 def run_driver(browser: str) -> webdriver:
@@ -25,50 +28,52 @@ def run_driver(browser: str) -> webdriver:
         driver = webdriver.Firefox()
         driver.maximize_window()
     if driver:
-        driver.get('https://www.olx.ua/uk/')
+        driver.get(URL)
         driver.implicitly_wait(20)
     return driver
 
 
 def choice_things(driver: webdriver, thing: str, region: str, location: str) -> list:
-    thing_to_search = driver.find_element(By.ID, "search")
-    thing_to_search.send_keys(f"{thing}")
-    time.sleep(3)
-    driver.find_element(By.ID, "location-input").click()
-    time.sleep(3)
-    reg1 = driver.find_element(By.XPATH, f"//span[text()='{region} область']/parent::div/parent::li")
-    driver.execute_script("arguments[0].scrollIntoView({behavior:\"auto\", block:\"center\", inline:\"center\"});", reg1)
-    time.sleep(5)
+    wait = WebDriverWait(driver, 20)
+
+    # Type in the search field
+    thing_to_search = wait.until(EC.presence_of_element_located((By.ID, "search")))
+    thing_to_search.send_keys(thing)
+
+    # Open region selector
+    wait.until(EC.element_to_be_clickable((By.ID, "location-input"))).click()
+
+    # Select region
+    reg1 = wait.until(EC.element_to_be_clickable((By.XPATH, f"//span[text()='{region} область']/parent::div/parent::li")))
+    driver.execute_script("arguments[0].scrollIntoView({behavior:'auto', block:'center'});", reg1)
     reg1.click()
+
+    # Select city
     if location == 'область':
-        reg2 = driver.find_element(By.CSS_SELECTOR, "div[data-cy= 'all-cities']")
-        driver.execute_script("arguments[0].scrollIntoView({behavior:\"auto\", block:\"center\", inline:\"center\"});", reg2)
-        time.sleep(5)
-        reg2.click()
+        reg2 = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "div[data-cy= 'all-cities']")))
     else:
-        reg2 = driver.find_element(By.XPATH, f"//li[text()='{location}']")
-        driver.execute_script("arguments[0].scrollIntoView({behavior:\"auto\", block:\"center\", inline:\"center\"});", reg2)
-        time.sleep(5)
-        reg2.click()
-    time.sleep(5)
-    driver.find_element(By.CSS_SELECTOR, '[name="searchBtn"]').click()
-    time.sleep(4)
-    cards = driver.find_elements(By.CSS_SELECTOR, "div[data-cy= 'l-card']")
+        reg2 = wait.until(EC.element_to_be_clickable((By.XPATH, f"//li[text()='{location}']")))
+
+    driver.execute_script("arguments[0].scrollIntoView({behavior:'auto', block:'center'});", reg2)
+    reg2.click()
+
+    # Click Search
+    wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, '[name="searchBtn"]'))).click()
+
+    # Wait for cards to load
+    cards = wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "div[data-cy= 'l-card']")))
     return cards
 
 
 def get_things(id2: int, max_price: str, card: webdriver.WebElement):
-    ids = []
-    time.sleep(4)
     card_id = card.get_attribute('id')
     image_link = card.find_element(By.TAG_NAME, 'img').get_attribute('src')
     describe = card.find_element(By.CSS_SELECTOR, "div[data-cy='ad-card-title']").find_element(By.TAG_NAME, 'h6').text
-    if card_id in ids:
-        return None, None, None
 
     try:
-        price = card.find_element(By.CSS_SELECTOR, "p[data-testid='ad-price']").text.replace(" ", "")
-        if int(price.replace("грн.", "").split('\n')[0]) <= int(max_price):
+        price = card.find_element(By.CSS_SELECTOR, "p[data-testid='ad-price']").text
+        price_digits = ''.join(filter(str.isdigit, price))
+        if price_digits and int(price_digits) <= int(max_price):
             add_price = price
         else:
             return None, None, None
@@ -82,12 +87,10 @@ def get_things(id2: int, max_price: str, card: webdriver.WebElement):
         print("state_tag error: ", er)
         state_tag = ''
 
-    ids.append(card_id)
     location_date = card.find_element(By.CSS_SELECTOR, "p[data-testid='location-date']").text
     describe_link = card.find_element(By.TAG_NAME, 'a').get_attribute('href')
-    # card_to_file.append([f"id={id2}, {image_link}, {describe}, {state_tag}, {add_price}, {location_date}, {describe_link}"])
 
-    return card_id, f"{image_link}, {describe}, {state_tag}, {add_price}, {location_date}", describe_link
+    return card_id, f"id={id2}, {image_link}, {describe}, {state_tag}, {add_price}, {location_date}", describe_link
 
 
 def scroll(driver: webdriver, item: webdriver.WebElement):
@@ -99,19 +102,22 @@ def scroll(driver: webdriver, item: webdriver.WebElement):
 
 def get_contacts(link: str, driver: webdriver) -> str:
     driver.get(link)
-    driver.implicitly_wait(20)
+    wait = WebDriverWait(driver, 20)
+
     try:
-        contacts = driver.find_element(By.XPATH, "//button[text()='показати']")
-        time.sleep(4)
-        driver.execute_script("arguments[0].scrollIntoView({behavior:\"auto\", block:\"center\", inline:\"center\"});",
-                              contacts)
-        time.sleep(4)
-        contacts.click()
-        time.sleep(4)
-        tel = driver.find_element(By.CSS_SELECTOR, "a[data-testid='contact-phone']").text
-        driver.quit()
-        return tel
+        # Wait for the 'показати' button to appear and be clickable
+        contacts_btn = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[text()='показати']")))
+
+        # Scroll to the button
+        driver.execute_script("arguments[0].scrollIntoView({behavior:'auto', block:'center'});", contacts_btn)
+
+        # Wait for stability, then click
+        wait.until(EC.element_to_be_clickable((By.XPATH, "//button[text()='показати']"))).click()
+
+        # Wait for the phone number to appear
+        phone_element = wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, "a[data-testid='contact-phone']")))
+        return phone_element.text
+
     except Exception as er:
-        print('phone error: ', er)
-        driver.quit()
+        print('phone error:', er)
         return "На жаль телефон не знайдено"

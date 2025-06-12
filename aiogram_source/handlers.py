@@ -6,8 +6,8 @@ from aiogram.types import Message, ReplyKeyboardRemove, CallbackQuery
 from aiogram_source import keyboards
 import asyncio
 
-import selenium_scraping
-from config import available_region, browsers
+from selenium_scraping import run_driver, get_contacts, choice_things, get_things, scroll
+from config import available_region, BROWSERS
 import save_csv
 
 router = Router()
@@ -19,18 +19,18 @@ class Choice(StatesGroup):
     choosing_region = State()
     choosing_region_town = State()
     quit_search = State()
-    busy = False
-    link = {}
+    busy_flag  = False
+    scraped_links  = {}
 
 
 @router.message(Command("start"))
-async def input_things(message: Message, state: FSMContext):
+async def start_command(message: Message, state: FSMContext):
     await message.answer(text="Що шукаєте ?")
     await state.set_state(Choice.choosing_things)
 
 
 @router.message(Command("stop"))
-async def input_things(message: Message, state: FSMContext):
+async def stop_command(message: Message, state: FSMContext):
     await message.answer(text="Пошук завершено")
     await state.clear()
 
@@ -107,14 +107,14 @@ async def choosing_things(message: Message, state: FSMContext):
 
 @router.callback_query(F.data.startswith("item_"))
 async def send_random_value(callback: CallbackQuery):
-    if not Choice.busy:
-        Choice.busy = True
+    if not Choice.busy_flag :
+        Choice.busy_flag  = True
         action = callback.data
-        driver = selenium_scraping.run_driver(browsers)
-        phone = selenium_scraping.get_contacts(Choice.link[action][1], driver)
-        await callback.message.answer(f"Для id={Choice.link[action][0]} Номер продавця: {phone}")
+        driver = run_driver(BROWSERS)
+        phone = get_contacts(Choice.scraped_links [action][1], driver)
+        await callback.message.answer(f"Для id={Choice.scraped_links [action][0]} Номер продавця: {phone}")
         driver.quit()
-        Choice.busy = False
+        Choice.busy_flag  = False
     else:
         await callback.message.answer("Відмова, я ще не закінчив пошук")
 
@@ -125,9 +125,10 @@ async def continue_searching(message: Message, state: FSMContext):
         if message.text == 'Завершити':
             await state.clear()
             await message.answer(text="Звертайтесь ще, в мене немає вихідних)", reply_markup=ReplyKeyboardRemove())
-            break
+
 
         elif message.text == 'Шукати далі':
+            await message.answer("Чекаю нові об'яви...")
             user_data = await state.get_data()
             await asyncio.sleep(1800)
             await searching(message, user_data['chosen_thing'], user_data['chosen_region'], user_data['town'],
@@ -135,33 +136,35 @@ async def continue_searching(message: Message, state: FSMContext):
 
 
 async def searching(message: Message, chosen_thing: str, chosen_region: str, town, price: str):
-    if not Choice.busy:
-        Choice.busy = True
+    if not Choice.busy_flag :
+        Choice.busy_flag  = True
         cards = ''
         n = 0
-        driver = selenium_scraping.run_driver(browsers)
-        cards = selenium_scraping.choice_things(driver, chosen_thing, chosen_region, town)
+        driver = run_driver(BROWSERS)
+        try:
+            cards = choice_things(driver, chosen_thing, chosen_region, town)
 
-        for i in range(len(cards)):
-            card_id, res3, describe_link = selenium_scraping.get_things(i, price, cards[i])
-            Choice.link[f'item_{card_id}'] = (card_id, describe_link)
+            for i in range(len(cards)):
+                card_id, res3, describe_link = get_things(i, price, cards[i])
+                Choice.scraped_links [f'item_{card_id}'] = (card_id, describe_link)
 
-            if (i + 1) % 4 == 0:
-                selenium_scraping.scroll(driver, cards[i])
-            if res3:
-                n += 1
-                await message.answer(
-                    text=f"id={card_id}, {res3}",
-                    reply_markup=keyboards.make_row_inline_keyboard(
-                        {
-                            "Дивитись на OLX:": {'url': describe_link},
-                            "Отримати контакти": {'callback_data': f"item_{card_id}"}
-                        }
+                if (i + 1) % 4 == 0:
+                    scroll(driver, cards[i])
+                if res3:
+                    n += 1
+                    await message.answer(
+                        text=f"id={card_id}, {res3}",
+                        reply_markup=keyboards.make_row_inline_keyboard([
+                            {"Дивитись на OLX:": {'url': describe_link}},
+                            {"Отримати контакти": {'callback_data': f"item_{card_id}"}}
+                        ])
+
                     )
 
-                )
-        driver.quit()
-        Choice.busy = False
+        finally:
+            driver.quit()
+
+        Choice.busy_flag  = False
         return n, len(cards)
 
     else:
