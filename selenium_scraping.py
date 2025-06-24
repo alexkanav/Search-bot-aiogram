@@ -7,6 +7,14 @@ from config import URL
 
 
 def run_driver(browser: str) -> webdriver:
+    """
+    Function to initialize and run the WebDriver for different browsers.
+    Arguments:
+    - browser: str (chrome, edge, firefox)
+
+    Returns:
+    - driver: selenium.webdriver
+    """
     driver = None
     if browser == 'chrome':
         options = webdriver.ChromeOptions()
@@ -33,39 +41,63 @@ def run_driver(browser: str) -> webdriver:
     return driver
 
 
-def choice_things(driver: webdriver, thing: str, region: str, location: str) -> list:
+def choice_things(driver: webdriver, thing: str, region: str, location: str):
+    """
+    Interacts with the search field and selects region and location.
+    Arguments:
+    - driver: selenium.webdriver
+    - thing: str (search query)
+    - region: str (region to select)
+    - location: str (city or area to select)
+
+    Returns:
+    - cards: list (list of WebElements representing items)
+    """
     wait = WebDriverWait(driver, 20)
+    try:
+        # Type in the search field
+        thing_to_search = wait.until(EC.presence_of_element_located((By.ID, "search")))
+        thing_to_search.send_keys(thing)
 
-    # Type in the search field
-    thing_to_search = wait.until(EC.presence_of_element_located((By.ID, "search")))
-    thing_to_search.send_keys(thing)
+        # Open region selector
+        wait.until(EC.element_to_be_clickable((By.ID, "location-input"))).click()
 
-    # Open region selector
-    wait.until(EC.element_to_be_clickable((By.ID, "location-input"))).click()
+        # Select region
+        reg1 = wait.until(EC.element_to_be_clickable((By.XPATH, f"//span[text()='{region} область']/parent::div/parent::li")))
+        driver.execute_script("arguments[0].scrollIntoView({behavior:'auto', block:'center'});", reg1)
+        reg1.click()
 
-    # Select region
-    reg1 = wait.until(EC.element_to_be_clickable((By.XPATH, f"//span[text()='{region} область']/parent::div/parent::li")))
-    driver.execute_script("arguments[0].scrollIntoView({behavior:'auto', block:'center'});", reg1)
-    reg1.click()
+        # Select city or area
+        if location == 'область':
+            reg2 = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "div[data-cy= 'all-cities']")))
+        else:
+            reg2 = wait.until(EC.element_to_be_clickable((By.XPATH, f"//li[text()='{location}']")))
 
-    # Select city
-    if location == 'область':
-        reg2 = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "div[data-cy= 'all-cities']")))
-    else:
-        reg2 = wait.until(EC.element_to_be_clickable((By.XPATH, f"//li[text()='{location}']")))
+        driver.execute_script("arguments[0].scrollIntoView({behavior:'auto', block:'center'});", reg2)
+        reg2.click()
 
-    driver.execute_script("arguments[0].scrollIntoView({behavior:'auto', block:'center'});", reg2)
-    reg2.click()
+        # Click the search button
+        wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, '[name="searchBtn"]'))).click()
 
-    # Click Search
-    wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, '[name="searchBtn"]'))).click()
+        # Wait for cards to load
+        cards = wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "div[data-cy= 'l-card']")))
+        return cards
 
-    # Wait for cards to load
-    cards = wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "div[data-cy= 'l-card']")))
-    return cards
+    except Exception as e:
+        print(f"Error while interacting with search: {e}")
+        return []  # Return an empty list in case of failure
 
+def get_things(id2: int, max_price: str, card):
+    """
+    Extracts necessary details from each card element.
+    Arguments:
+    - id2: int (unique ID for the item)
+    - max_price: str (maximum price for filtering items)
+    - card: selenium.webdriver.remote.webelement.WebElement (the card to extract data from)
 
-def get_things(id2: int, max_price: str, card: webdriver.WebElement):
+    Returns:
+    - tuple: (card_id, description, card_link)
+    """
     card_id = card.get_attribute('id')
     image_link = card.find_element(By.TAG_NAME, 'img').get_attribute('src')
     describe = card.find_element(By.CSS_SELECTOR, "div[data-cy='ad-card-title']").find_element(By.TAG_NAME, 'h6').text
@@ -93,14 +125,29 @@ def get_things(id2: int, max_price: str, card: webdriver.WebElement):
     return card_id, f"id={id2}, {image_link}, {describe}, {state_tag}, {add_price}, {location_date}", describe_link
 
 
-def scroll(driver: webdriver, item: webdriver.WebElement):
+def scroll(driver: webdriver, item: webdriver):
+    """
+    Scrolls the page to bring a particular element into view.
+    Arguments:
+    - driver: selenium.webdriver
+    - item: selenium.webdriver.remote.webelement.WebElement (the item to scroll to)
+    """
     try:
-        driver.execute_script("arguments[0].scrollIntoView(true);", item)
+        driver.execute_script("arguments[0].scrollIntoView({behavior: 'smooth', block: 'center'});", item)
     except Exception as err:
         print('scroll error: ', err)
 
 
 def get_contacts(link: str, driver: webdriver) -> str:
+    """
+    Extracts the contact information (phone number) from a card's detail page.
+    Arguments:
+    - link: str (URL to open for detailed view)
+    - driver: selenium.webdriver
+
+    Returns:
+    - str: phone number or a fallback message if not found
+    """
     driver.get(link)
     wait = WebDriverWait(driver, 20)
 
