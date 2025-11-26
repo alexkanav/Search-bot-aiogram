@@ -1,30 +1,25 @@
 ## Search  Bot
-A Telegram bot built using Aiogram and Selenium that allows users to search for products by category, price, and region — and receive real-time results directly in Telegram. Users can also access seller contact information for quick communication.
+Search Bot is a Telegram bot built using Aiogram and Selenium that allows users to search for products by name, category, price, town, and region — with real-time results delivered directly to Telegram.
+Users can also view seller contact information and even schedule automated repeated searches.
 
 ---
 ### Features
 - Search items by name and region
-
-- Filter by max price
-
-- Choose region and town interactively
-
-- Get live search results in chat
-
-- Get seller contact info
-
-- Option to repeat search every half hour
-
-- Save results to CSV
+- Filter results by maximum price
+- Interactive region & town selection
+- Receive live search results directly in chat
+- Access seller contact information
+- Repeat search every 30 minutes (optional)
+- Save results to CSV for later use
 
 ---
 ## Getting Started
 ✅ Prerequisites
 - Python 3.10+
-
 - A Telegram Bot Token from @BotFather
 
-- Chrome (or Edge/Firefox if preferred)
+- Chrome browser installed
+(You can also use Edge or Firefox if you adjust the Selenium driver accordingly)
 
 ---
 ## Install Requirements
