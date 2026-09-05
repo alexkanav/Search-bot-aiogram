@@ -1,142 +1,280 @@
 # Marketplace Search Bot
-Marketplace Search Bot is a Telegram bot that continuously monitors marketplace listings based on user-defined search criteria and notifies users when new matching items appear.
+
+A microservices-based Telegram bot for searching marketplace listings based on user-defined criteria, with **continuous monitoring**, **database-backed item history**, and **asynchronous communication between microservices**.
+
+The system consists of two independent services: the **Telegram Bot** and the **Marketplace Search Service**, which communicate primarily through **RabbitMQ**.
 
 ---
+
 ## Features
 
-- Search listings by keyword
-- Filter by maximum price
-- Filter by region and location
-- Continuous monitoring
+- Search marketplace listings by query and price
+- Select marketplace regions and locations
+- One-time or continuous searches
+- Periodic monitoring for new listings
 - Instant Telegram notifications
-- Multiple marketplace support
-- Async architecture
-- Redis caching
-- MongoDB storage
+- Support for multiple marketplaces
+- Store found items in MongoDB
+- Automatic expiration of stored marketplace items
+- Redis-based FSM storage and caching
+- Asynchronous communication through RabbitMQ
+- Service-to-service authentication
 - Playwright-based scraping
+- Unit and integration testing with pytest
 
 ---
+
 ## Tech Stack
 
-- Python 3.10+
-- aiogram 3
-- Playwright
-- MongoDB
-- Redis
-- Docker
-- asyncio
+- **Python 3.12+**
+- **Aiogram 3** — Telegram bot framework
+- **FastAPI** — Marketplace Search Service API
+- **Playwright** — Marketplace scraping
+- **RabbitMQ** — Asynchronous inter-service communication
+- **MongoDB** — Marketplace item storage
+- **Redis** — FSM storage and caching
+- **Pydantic Settings** — Configuration management
+- **Docker** — Containerization
+- **Pytest** — Testing
 
 ---
+
 ## Architecture
 
-The bot consists of:
+The application is split into independent services:
 
-- Telegram handlers
-- Search task manager
-- Marketplace scraper
-- MongoDB repository
-- Redis cache
-- Notification service
+```text
+      ┌──────────────────┐
+      │  Telegram User   │
+      └────────┬─────────┘
+               │
+               ▼
+ ┌───────────────────────┐
+ │      Telegram Bot     │
+ │                       │
+ │  Aiogram              │
+ │  FSM                  │
+ │  Redis                │
+ └──────┬──────────┬─────┘
+        │          │
+HTTP request    search_request
+ / response        │
+ (optional)        ▼
+        │   ┌───────────┐
+        │   │ RabbitMQ  │
+        │   └─────┬─────┘
+        │         │
+        ▼         ▼
+ ┌─────────────────────────┐
+ │ Marketplace Search      │
+ │        Service          │
+ │                         │
+ │ FastAPI                 │
+ │ SearchService           │
+ │ TaskManager             │
+ │ MarketplaceScraper      │
+ │ Playwright              │
+ └───────┬─────────┬───────┘
+         │         │
+         ▼         │
+    ┌─────────┐    │
+    │ MongoDB │    │
+    └─────────┘    │
+                   │
+           search_result
+                   │
+                   ▼
+           ┌───────────┐
+           │ RabbitMQ  │
+           └─────┬─────┘
+                 │
+                 ▼
+        ┌─────────────────┐
+        │   Telegram Bot  │
+        │  Notification   │
+        └────────┬────────┘
+                 │
+                 ▼
+        ┌─────────────────┐
+        │  Telegram User  │
+        └─────────────────┘
+```
 
-## Design Decisions
+### Service responsibilities
 
-- Async-first architecture using asyncio
-- Dependency injection for services
-- Repository pattern for persistence
-- Redis caching to reduce duplicate processing
-- Playwright instead of Selenium for improved reliability
-- Background search tasks managed independently of Telegram handlers
+#### Telegram Bot
+
+Responsible for:
+
+- Telegram communication
+- User interaction
+- FSM conversation flow
+- Search configuration
+- Sending search requests
+- Receiving search results
+- Sending notifications to users
+- Redis-backed FSM storage
+
+The bot does **not** perform marketplace scraping directly.
+
+#### Marketplace Search Service
+
+Responsible for:
+
+- Marketplace scraping
+- Search execution
+- Continuous monitoring
+- Managing background search tasks
+- Database operations
+- Providing marketplace region/location data
+- Returning search results
+
+The Marketplace Search Service exposes a FastAPI API for HTTP requests such as retrieving
+marketplace regions and locations. RabbitMQ is used for asynchronous
+communication between the Telegram Bot and Marketplace Search Service, including search
+requests and search results.
 
 ---
-## Installation
 
-Clone the repository
+## Communication
 
-```bash
-git clone https://github.com/alexkanav/search-bot.git
-cd search-bot
+The Telegram Bot and Marketplace Search Service communicate primarily through
+**RabbitMQ** using asynchronous messages.
+
+- `search_request` — starts a marketplace search.
+- `search_result` — delivers newly found listings back to the Telegram Bot.
+
+The Marketplace Search Service also exposes asynchronous **FastAPI** endpoints for operations
+such as retrieving marketplace regions and locations. These HTTP requests are
+optional; if the Marketplace Search Service is unavailable, the Bot can fall back to retrieving
+region data directly.
+
+---
+
+## Search Flow
+
+A typical search works as follows:
+
+```text
+1. User starts the Telegram bot
+             │
+             ▼
+2. User selects marketplace
+             │
+             ▼
+3. User selects region/location
+             │
+             ▼
+4. User enters search query
+             │
+             ▼
+5. User specifies maximum price
+             │
+             ▼
+6. User selects search timeout
+             │
+             ▼
+7. Telegram Bot sends search request
+             │
+             ▼
+8. RabbitMQ → search_request
+             │
+             ▼
+9. Marketplace Search Service receives request
+             │
+             ▼
+10. MarketplaceScraper performs search
+             │
+             ▼
+11. New items are detected
+             │
+             ├──────────────► MongoDB
+             │
+             ▼
+12. RabbitMQ → search_result
+             │
+             ▼
+13. Telegram Bot receives result
+             │
+             ▼
+14. User receives marketplace listing
 ```
 
-Create a virtual environment
+---
+
+## Running with Docker
+
+The project is designed to run as multiple services.
 
 ```bash
-python -m venv .venv
+docker compose up --build
 ```
 
-Activate it
+This starts the required infrastructure and application services.
+
+To stop the application:
 
 ```bash
-source .venv/bin/activate
+docker compose down
 ```
 
-Install dependencies
+---
+
+## Running Locally
+
+### Install dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-## Environment Variables
+### Start infrastructure
 
-Create a `.env` file in the project root:
+Run:
 
-```env
-TOKEN=
-REDIS_HOST=
-REDIS_PORT=
-REDIS_PASSWORD=
-MONGODB_URL=
-MONGO_DB_NAME=
-MONGODB_COLLECTION=
-```
+- RabbitMQ
+- MongoDB
+- Redis
 
-| Variable | Description |
-|----------|-------------|
-| `TOKEN` | Telegram bot token obtained from BotFather |
-| `REDIS_HOST` | Redis server hostname |
-| `REDIS_PORT` | Redis server port |
-| `REDIS_PASSWORD` | Redis password (leave empty if authentication is disabled) |
-| `MONGODB_URL` | MongoDB connection URI |
-| `MONGO_DB_NAME` | MongoDB database name |
-| `MONGODB_COLLECTION` | Collection used to store user searches |
-
----
-## Run
+### Start the Marketplace Search Service
 
 ```bash
-python -m app.bot
+uvicorn main:app --reload
 ```
 
-## Usage
+### Start the Telegram Bot:
 
-1. Start the bot
-
+```bash
+python main.py
 ```
-/start
-```
-
-2. Choose a marketplace
-
-3. Enter a search query
-
-4. Set the maximum price
-
-5. Select region (optional)
-
-6. Select location (optional)
-
-7. Set the search interval
-
-The bot will continuously monitor new listings and notify you when matching items appear.
 
 ---
+
+## Design Principles
+
+The project follows several architectural principles:
+
+- **Separation of responsibilities** — Telegram interaction and marketplace scraping are separate services.
+- **Asynchronous communication** — RabbitMQ decouples the Bot and Marketplace Search Service.
+- **Dependency injection** — infrastructure dependencies are injected into services.
+- **Thin API layer** — FastAPI routes delegate business logic to services.
+- **Resource lifecycle management** — Playwright, MongoDB and RabbitMQ are initialized and closed through the application lifecycle.
+- **Background task management** — `TaskManager` controls long-running searches.
+- **Caching** — Redis reduces unnecessary repeated operations.
+- **Configuration through environment variables** — secrets and environment-specific settings are not hard-coded.
+- **Testability** — business logic is separated from infrastructure and framework-specific code.
+
+---
+
 ## Future Improvements
 
-- Additional marketplace support
+- Support for additional marketplaces
 - Image similarity search
 - User search history
 - Web dashboard
 - Metrics and monitoring
 
 ---
+
 ## License
 MIT — Feel free to use, modify, and share.
