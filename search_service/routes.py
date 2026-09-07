@@ -1,15 +1,16 @@
 from fastapi import APIRouter, HTTPException, Request, Depends, Header
 
-from config import TOKEN, REGIONS_ENDPOINT, LOCATIONS_ENDPOINT
+from config import REGIONS_ENDPOINT, LOCATIONS_ENDPOINT
 from models.locations import LocationsRequest, LocationsResponse
 from models.regions import RegionRequest, RegionsResponse
 from scraper.marketplace_scraper import MarketplaceScraper
 
 
 async def verify_token(
+        request: Request,
         authorization: str = Header(...),
 ) -> None:
-    if authorization != f"Bearer {TOKEN}":
+    if authorization != f"Bearer {request.app.state.service_token}":
         raise HTTPException(
             status_code=401,
             detail="Unauthorized",

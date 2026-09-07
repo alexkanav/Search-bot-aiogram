@@ -24,6 +24,8 @@ async def lifespan(app: FastAPI):
     rabbit = None
 
     try:
+        app.state.service_token = app_settings.SERVICE_TOKEN
+
         scraper = await MarketplaceScraper.create()
         app.state.scraper = scraper
 

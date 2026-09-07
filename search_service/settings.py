@@ -7,6 +7,8 @@ BASE_DIR = Path(__file__).resolve().parent
 
 
 class Settings(BaseSettings):
+    SERVICE_TOKEN: str
+
     RABBITMQ_URL: AnyUrl
 
     MONGODB_URL: AnyUrl
